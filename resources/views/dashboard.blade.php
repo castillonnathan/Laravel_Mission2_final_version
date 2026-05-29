@@ -449,6 +449,7 @@
             const el = document.getElementById('tab-' + tabId);
             el.style.display = 'flex';
             el.style.flexDirection = 'column';
+            const z = a;
             btn.classList.add('active');
         }
 
