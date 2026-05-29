@@ -1,0 +1,29 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('sites', function (Blueprint $table) {
+            $table->id();
+            $table->string('nom');
+            $table->enum('type', ['mine', 'depot', 'client_site', 'autre'])->default('depot');
+            $table->string('adresse')->nullable();
+            $table->string('ville')->nullable();
+            $table->string('code_postal', 20)->nullable();
+            $table->string('pays')->nullable();
+            $table->text('notes')->nullable();
+            $table->boolean('actif')->default(true);
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('sites');
+    }
+};
