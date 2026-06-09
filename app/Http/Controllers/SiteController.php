@@ -81,6 +81,7 @@ class SiteController extends Controller
             'code_postal' => 'nullable|string|max:20',
             'pays'        => 'nullable|string|max:255',
             'notes'       => 'nullable|string',
+            'minerais_autorises' => 'required|array| min:1',
             'actif'       => 'nullable|boolean',
         ]) + ['actif' => $request->boolean('actif', true)];
     }

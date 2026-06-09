@@ -92,7 +92,7 @@
                         <div>
                             <dt class="text-gray-400 text-xs uppercase">Durée du transfert</dt>
                             <dd class="mt-1 font-medium">
-                                {{ $mouvement->duree ?? '—' }}
+                                {{ $mouvement->getDureeAttribute() ?? '—' }}
                                 @if($mouvement->transfert_en_cours)
                                     <span class="text-xs text-amber-500 font-normal">(en cours)</span>
                                 @endif
