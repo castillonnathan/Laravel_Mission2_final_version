@@ -51,6 +51,12 @@ class MouvementObserver
      */
     public function updating(Mouvement $mouvement): void
     {
+        $champsModifies  = array_keys($mouvement->getDirty());
+        $champsAutorises = ['statut_transfert', 'date_fin'];
+
+        if (empty(array_diff($champsModifies, $champsAutorises))) {
+            return;
+        }
         throw ValidationException::withMessages([
             'mouvement' => "Un mouvement ne peut pas être modifié après sa création. Créez un mouvement d'ajustement pour corriger.",
         ]);
@@ -63,10 +69,6 @@ class MouvementObserver
     {
         $this->appliquerSurStocks($mouvement, sens: -1);
     }
-
-    // ============================================================
-    //  Helpers privés
-    // ============================================================
 
     /**
      * Vérifie que les sites source/destination sont cohérents avec le type.
