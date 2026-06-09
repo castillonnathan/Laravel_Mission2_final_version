@@ -47,11 +47,19 @@
                             @endforeach
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-xs text-gray-600">Statut transfert</label>
+                        <select name="statut_transfert" class="border-gray-300 rounded-md shadow-sm text-sm">
+                            <option value="">Tous</option>
+                            <option value="en_cours" @selected(request('statut_transfert') === 'en_cours')>En cours</option>
+                            <option value="termine"  @selected(request('statut_transfert') === 'termine')>Terminé</option>
+                        </select>
+                    </div>
                     <button type="submit"
                             class="bg-gray-700 text-white px-3 py-1.5 rounded-md text-sm hover:bg-gray-800">
                         Filtrer
                     </button>
-                    @if(request()->hasAny(['type', 'minerai_id', 'site_id']))
+                    @if(request()->hasAny(['type', 'minerai_id', 'site_id', 'statut_transfert']))
                         <a href="{{ route('mouvements.index') }}" class="text-sm text-gray-500 hover:underline self-center">
                             Réinitialiser
                         </a>
@@ -70,6 +78,7 @@
                             <th class="px-4 py-3">Numéro</th>
                             <th class="px-4 py-3">Date</th>
                             <th class="px-4 py-3">Type</th>
+                            <th class="px-4 py-3">Statut</th>
                             <th class="px-4 py-3">Minerai</th>
                             <th class="px-4 py-3 text-right">Quantité</th>
                             <th class="px-4 py-3">Source → Destination</th>
@@ -79,9 +88,11 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                         @foreach($mouvements as $m)
-                            <tr>
+                            <tr class="{{ $m->transfert_en_cours ? 'bg-amber-50/40' : '' }}">
                                 <td class="px-4 py-3 font-mono text-xs">{{ $m->numero }}</td>
-                                <td class="px-4 py-3 text-gray-500">{{ $m->date_mouvement->format('d/m/Y H:i') }}</td>
+                                <td class="px-4 py-3 text-gray-500 whitespace-nowrap">
+                                    {{ $m->date_mouvement->format('d/m/Y H:i') }}
+                                </td>
                                 <td class="px-4 py-3">
                                     @php
                                         $colors = [
@@ -92,11 +103,28 @@
                                         ];
                                     @endphp
                                     <span class="text-xs px-2 py-1 rounded-full {{ $colors[$m->type] ?? '' }}">
-                                            {{ $m->type_label }}
-                                        </span>
+                                        {{ $m->type_label }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    @if($m->type === \App\Models\Mouvement::TYPE_TRANSFERT)
+                                        @if($m->transfert_en_cours)
+                                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5
+                                                         rounded-full bg-amber-100 text-amber-700">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                                En cours
+                                            </span>
+                                        @else
+                                            <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                                ✓ Terminé
+                                            </span>
+                                        @endif
+                                    @else
+                                        <span class="text-gray-300 text-xs">—</span>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3">{{ $m->minerai->nom ?? '—' }}</td>
-                                <td class="px-4 py-3 text-right font-medium">
+                                <td class="px-4 py-3 text-right font-medium whitespace-nowrap">
                                     {{ rtrim(rtrim(number_format($m->quantite, 3, ',', ' '), '0'), ',') }}
                                     <span class="text-gray-400 text-xs">{{ $m->minerai->unite ?? '' }}</span>
                                 </td>
@@ -106,7 +134,7 @@
                                     {{ $m->siteDestination->nom ?? '—' }}
                                 </td>
                                 <td class="px-4 py-3 text-gray-500">{{ $m->user->name ?? '—' }}</td>
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3 whitespace-nowrap">
                                     <a href="{{ route('mouvements.show', $m) }}"
                                        class="text-blue-600 hover:underline text-sm">Détail</a>
                                 </td>

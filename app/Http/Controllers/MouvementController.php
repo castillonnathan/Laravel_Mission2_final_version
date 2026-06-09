@@ -10,12 +10,15 @@ use Illuminate\Validation\Rule;
 
 class MouvementController extends Controller
 {
+    // ──────────────────────────────────────────────────────────────────────
+    // Liste avec filtres
+    // ──────────────────────────────────────────────────────────────────────
+
     public function index(Request $request)
     {
         $query = Mouvement::with(['minerai', 'siteSource', 'siteDestination', 'user'])
             ->latest('date_mouvement');
 
-        // Filtres optionnels
         if ($type = $request->query('type')) {
             $query->where('type', $type);
         }
@@ -25,8 +28,13 @@ class MouvementController extends Controller
         if ($siteId = $request->query('site_id')) {
             $query->where(function ($q) use ($siteId) {
                 $q->where('site_source_id', $siteId)
-                    ->orWhere('site_destination_id', $siteId);
+                  ->orWhere('site_destination_id', $siteId);
             });
+        }
+        // Filtre statut transfert
+        if ($statut = $request->query('statut_transfert')) {
+            $query->where('type', Mouvement::TYPE_TRANSFERT)
+                  ->where('statut_transfert', $statut);
         }
 
         $mouvements = $query->paginate(25)->withQueryString();
@@ -36,14 +44,43 @@ class MouvementController extends Controller
         return view('mouvements.index', compact('mouvements', 'minerais', 'sites'));
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // Formulaire de création
+    // ──────────────────────────────────────────────────────────────────────
+
     public function create(Request $request)
     {
         $type     = $request->query('type', Mouvement::TYPE_ENTREE);
         $minerais = Minerai::where('actif', true)->orderBy('nom')->get();
         $sites    = Site::where('actif', true)->orderBy('nom')->get();
 
-        return view('mouvements.create', compact('type', 'minerais', 'sites'));
+        // Pour chaque site de type mine : liste des IDs de minerais autorisés.
+        // Pour les autres types : tableau vide (= pas de restriction côté JS).
+        $sitesMineraisAutorises = $sites->mapWithKeys(fn ($s) => [
+            $s->id => $s->estUneMine()
+                ? $s->mineraisAutorises->pluck('id')
+                : [],          // dépôt/client → [] = aucune restriction
+        ]);
+
+        // Stocks actuels par site (pour l'info à l'utilisateur)
+        $stocksParSite = $sites->mapWithKeys(fn ($s) => [
+            $s->id => $s->stocks->pluck('quantite', 'minerai_id'),
+        ]);
+
+        // Flag par site : est-ce une mine ?
+        $sitesSontMine = $sites->mapWithKeys(fn ($s) => [
+            $s->id => $s->estUneMine(),
+        ]);
+
+        return view('mouvements.create', compact(
+            'type', 'minerais', 'sites',
+            'sitesMineraisAutorises', 'stocksParSite', 'sitesSontMine'
+        ));
     }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Enregistrement
+    // ──────────────────────────────────────────────────────────────────────
 
     public function store(Request $request)
     {
@@ -57,16 +94,51 @@ class MouvementController extends Controller
             'date_mouvement'      => 'nullable|date',
         ]);
 
-        try {
-            $mouvement = Mouvement::create($data);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return back()->withErrors($e->errors())->withInput();
+        $mineraiId = (int) $data['minerai_id'];
+        $errors    = [];
+
+        // ── Validation site source ────────────────────────────────────────
+        if (! empty($data['site_source_id'])) {
+            $siteSource = Site::with('mineraisAutorises')->find($data['site_source_id']);
+
+            if (! $siteSource->accepteMinerai($mineraiId)) {
+                $mineraiNom = Minerai::find($mineraiId)?->nom ?? 'ce minerai';
+                $errors['site_source_id'] =
+                    "Le minerai « {$mineraiNom} » n'est pas exploitable sur la mine « {$siteSource->nom} ». "
+                    . "Ce mouvement est refusé.";
+            }
         }
+
+        // ── Validation site destination ───────────────────────────────────
+        if (! empty($data['site_destination_id'])) {
+            $siteDest = Site::with('mineraisAutorises')->find($data['site_destination_id']);
+
+            if (! $siteDest->accepteMinerai($mineraiId)) {
+                $mineraiNom = Minerai::find($mineraiId)?->nom ?? 'ce minerai';
+                $errors['site_destination_id'] =
+                    "Le minerai « {$mineraiNom} » n'est pas exploitable sur la mine « {$siteDest->nom} ». "
+                    . "Ce mouvement est refusé.";
+            }
+        }
+
+        if (! empty($errors)) {
+            return back()->withErrors($errors)->withInput();
+        }
+
+        $mouvement = Mouvement::create($data);
+        // statut_transfert est positionné automatiquement dans le boot() du modèle
 
         return redirect()
             ->route('mouvements.show', $mouvement)
-            ->with('success', "Mouvement {$mouvement->numero} enregistré.");
+            ->with('success', "Mouvement {$mouvement->numero} enregistré."
+                . ($mouvement->type === Mouvement::TYPE_TRANSFERT
+                    ? ' Statut : Transfert en cours.'
+                    : ''));
     }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Détail
+    // ──────────────────────────────────────────────────────────────────────
 
     public function show(Mouvement $mouvement)
     {
@@ -74,18 +146,42 @@ class MouvementController extends Controller
         return view('mouvements.show', compact('mouvement'));
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // Clôturer un transfert (admin ou technicien)
+    // ──────────────────────────────────────────────────────────────────────
+
+    public function cloturer(Mouvement $mouvement)
+    {
+        if ($mouvement->type !== Mouvement::TYPE_TRANSFERT) {
+            return back()->with('error', 'Ce mouvement n\'est pas un transfert.');
+        }
+
+        if ($mouvement->statut_transfert === Mouvement::STATUT_TERMINE) {
+            return back()->with('error', 'Ce transfert est déjà terminé.');
+        }
+
+        $mouvement->cloturer();
+
+        return redirect()
+            ->route('mouvements.show', $mouvement)
+            ->with('success', "Transfert {$mouvement->numero} marqué comme terminé.");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Suppression (admin uniquement)
+    // ──────────────────────────────────────────────────────────────────────
+
     public function destroy(Mouvement $mouvement)
     {
-        // Seuls les admins peuvent supprimer un mouvement (gère ça via middleware ou ici)
-        if (!auth()->user()->isAdmin()) {
+        if (! auth()->user()->isAdmin()) {
             return back()->with('error', 'Seul un administrateur peut supprimer un mouvement.');
         }
 
         $numero = $mouvement->numero;
-        $mouvement->delete(); // l'observer s'occupe d'inverser le stock
+        $mouvement->delete();
 
         return redirect()
             ->route('mouvements.index')
-            ->with('success', "Mouvement {$numero} supprimé, stock recalculé.");
+            ->with('success', "Mouvement {$numero} supprimé.");
     }
 }
