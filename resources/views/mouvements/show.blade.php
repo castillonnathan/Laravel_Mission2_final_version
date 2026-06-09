@@ -49,7 +49,6 @@
                     @endif
                 </div>
 
-                {{-- Détails --}}
                 <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
                         <dt class="text-gray-400 text-xs uppercase">Minerai</dt>
@@ -118,12 +117,11 @@
                     </div>
                 </dl>
 
-                {{-- Actions --}}
                 <div class="pt-4 border-t flex flex-wrap gap-3 justify-end">
 
                     {{-- Clôturer un transfert en cours : admin ou technicien --}}
                     @if($mouvement->type === \App\Models\Mouvement::TYPE_TRANSFERT && $mouvement->transfert_en_cours)
-                        @can('cloturer-transfert')  {{-- si vous avez une gate --}}
+                        @can('cloturer-transfert')
                         @else
                         @endcan
                         {{-- Accessible à admin & technicien (protégé par la route) --}}
@@ -133,7 +131,7 @@
                             @csrf @method('PATCH')
                             <button type="submit"
                                     class="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">
-                                ✓ Marquer le transfert comme terminé
+                                Marquer le transfert comme terminé
                             </button>
                         </form>
                     @endif
