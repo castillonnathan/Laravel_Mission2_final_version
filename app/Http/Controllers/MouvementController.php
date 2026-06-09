@@ -10,9 +10,7 @@ use Illuminate\Validation\Rule;
 
 class MouvementController extends Controller
 {
-    // ──────────────────────────────────────────────────────────────────────
     // Liste avec filtres
-    // ──────────────────────────────────────────────────────────────────────
 
     public function index(Request $request)
     {
@@ -44,9 +42,7 @@ class MouvementController extends Controller
         return view('mouvements.index', compact('mouvements', 'minerais', 'sites'));
     }
 
-    // ──────────────────────────────────────────────────────────────────────
     // Formulaire de création
-    // ──────────────────────────────────────────────────────────────────────
 
     public function create(Request $request)
     {
@@ -62,12 +58,12 @@ class MouvementController extends Controller
                 : [],          // dépôt/client → [] = aucune restriction
         ]);
 
-        // Stocks actuels par site (pour l'info à l'utilisateur)
+        // Stocks actuels par site
         $stocksParSite = $sites->mapWithKeys(fn ($s) => [
             $s->id => $s->stocks->pluck('quantite', 'minerai_id'),
         ]);
 
-        // Flag par site : est-ce une mine ?
+        // est-ce une mine ?
         $sitesSontMine = $sites->mapWithKeys(fn ($s) => [
             $s->id => $s->estUneMine(),
         ]);
@@ -78,9 +74,7 @@ class MouvementController extends Controller
         ));
     }
 
-    // ──────────────────────────────────────────────────────────────────────
     // Enregistrement
-    // ──────────────────────────────────────────────────────────────────────
 
     public function store(Request $request)
     {
@@ -97,7 +91,6 @@ class MouvementController extends Controller
         $mineraiId = (int) $data['minerai_id'];
         $errors    = [];
 
-        // ── Validation site source ────────────────────────────────────────
         if (! empty($data['site_source_id'])) {
             $siteSource = Site::with('mineraisAutorises')->find($data['site_source_id']);
 
@@ -109,7 +102,6 @@ class MouvementController extends Controller
             }
         }
 
-        // ── Validation site destination ───────────────────────────────────
         if (! empty($data['site_destination_id'])) {
             $siteDest = Site::with('mineraisAutorises')->find($data['site_destination_id']);
 
@@ -126,7 +118,6 @@ class MouvementController extends Controller
         }
 
         $mouvement = Mouvement::create($data);
-        // statut_transfert est positionné automatiquement dans le boot() du modèle
 
         return redirect()
             ->route('mouvements.show', $mouvement)
@@ -136,9 +127,6 @@ class MouvementController extends Controller
                     : ''));
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Détail
-    // ──────────────────────────────────────────────────────────────────────
 
     public function show(Mouvement $mouvement)
     {
@@ -146,9 +134,7 @@ class MouvementController extends Controller
         return view('mouvements.show', compact('mouvement'));
     }
 
-    // ──────────────────────────────────────────────────────────────────────
     // Clôturer un transfert (admin ou technicien)
-    // ──────────────────────────────────────────────────────────────────────
 
     public function cloturer(Mouvement $mouvement)
     {
@@ -167,9 +153,7 @@ class MouvementController extends Controller
             ->with('success', "Transfert {$mouvement->numero} marqué comme terminé.");
     }
 
-    // ──────────────────────────────────────────────────────────────────────
     // Suppression (admin uniquement)
-    // ──────────────────────────────────────────────────────────────────────
 
     public function destroy(Mouvement $mouvement)
     {
